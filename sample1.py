@@ -22,13 +22,13 @@ spark.sparkContext.setLogLevel('WARN')
 
  
 #Reading source and lrf
-df_source = spark.read.csv("gs://bucket_for_sample-cluster/sample.csv", inferSchema= True , header= True)
+df_source = spark.read.csv("gs://bi-gcp-poc-bucket/sample.csv", inferSchema= True , header= True)
 df_source.show()
 
 
 # Saving the data to BigQuery
 df_source.write.format('bigquery') \
   .option('table', 'dataset_1.table_1') \
-  .option("temporaryGcsBucket","bucket_for_sample-cluster") \
+  .option("temporaryGcsBucket","bi-gcp-poc-bucket") \
   .mode('append') \
 .save()
