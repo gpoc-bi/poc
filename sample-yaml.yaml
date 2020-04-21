@@ -30,7 +30,7 @@ steps:
 
 - name: gcr.io/cloud-builders/git
 
-  args: ['clone', 'https://github.com/bcthis2020/ci-cd-for-data-processing-workflow.git']
+  args: ['clone', 'https://github.com/gpoc-bi/poc.git']
 
   id: 'check-out-source-code'
 
@@ -44,9 +44,9 @@ steps:
 
 - name: gcr.io/cloud-builders/gsutil
 
-  args: ['cp', 'dag.py', 'gs://us-central1-data-pipeline-c-6f117ebe-bucket/dags/new-dag.py']
+  args: ['cp', 'new_spark.py', 'gs://europe-west2-gcp-composer-19dc2007-bucket/dags/n_new_spark.py']
 
-  dir: 'ci-cd-for-data-processing-workflow/cicd-pyspark'
+  dir: 'poc/'
 
   id: 'cicd-copy-day-gsbucket'
 
@@ -56,7 +56,7 @@ steps:
 
 - name: gcr.io/cloud-builders/gcloud
 
-  args: ['composer', 'environments', 'run', 'data-pipeline-composer', '--location', 'us-central1', 'trigger_dag', '--', 'pyspark-job-dag']
+  args: ['composer', 'environments', 'run', 'data-pipeline-composer', '--location', 'europe-west2', 'trigger_dag', '--', 'pyspark-job-dag']
 
   id: 'trigger-pipeline-execution'
 
