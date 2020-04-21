@@ -28,7 +28,7 @@ df_source.show()
 
 # Saving the data to BigQuery
 df_source.write.format('bigquery') \
-  .option('table', 'dataset_1.table_1') \
+  .option('table', 'MIRPROD.table_1') \
   .option("temporaryGcsBucket","bi-gcp-poc-bucket") \
   .mode('append') \
 .save()
