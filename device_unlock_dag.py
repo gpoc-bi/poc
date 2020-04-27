@@ -1,6 +1,3 @@
-#first tag
-#secon
-#hirdd
 import datetime
 import os
 
@@ -32,7 +29,7 @@ default_dag_args = {
 }
 
 with models.DAG(
-        'Device_unlock_run_6',
+        'Device_unlock_run',
         # Continue to run DAG once per day
         schedule_interval=datetime.timedelta(days=1),
         default_args=default_dag_args) as dag:
