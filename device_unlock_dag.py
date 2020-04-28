@@ -7,8 +7,8 @@ from airflow.utils import trigger_rule
 
 BUCKET = models.Variable.get('gcs_bucket')  # GCS bucket with our data.
 
-PYSPARK_JOB1 = 'gs://device_unlock_inbound/Device_Unlock_OL_GCP.py'
-PYSPARK_JOB2 = 'gs://device_unlock_inbound/device_unlock_el_cloud.py'
+PYSPARK_JOB1 = 'gs://device_unlock_inbound/Device_Unlock_OL_GCP_run.py'
+PYSPARK_JOB2 = 'gs://device_unlock_inbound/device_unlock_el_cloud_run.py'
 
 yesterday = datetime.datetime.combine(
     datetime.datetime.today() - datetime.timedelta(1),
@@ -29,7 +29,7 @@ default_dag_args = {
 }
 
 with models.DAG(
-        'Device_unlock_run',
+        'Device_unlock_run_g_4',
         # Continue to run DAG once per day
         schedule_interval=datetime.timedelta(days=1),
         default_args=default_dag_args) as dag:
