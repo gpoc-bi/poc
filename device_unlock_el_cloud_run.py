@@ -22,6 +22,7 @@ import datetime as dt
 import pyspark.sql.functions as F
 import sys,time
 
+
 sc = SparkContext.getOrCreate()
 sqlContext = sql.SQLContext(sc)
 
@@ -33,9 +34,28 @@ log = log4jLogger.LogManager.getLogger("RollingFile")
 log.setLevel(log4jLogger.Level.INFO)
 
 GCP_BUCKET = "gs://device_unlock_inbound/"
+GCP_BUCKET_OUT = "gs://device_unlock_outbound/"
+
+process_name = "Device unlock EL"
+pyspark_job_name ="Device_Unlock_EL_GCP.py"
+type_of_load = "EL"
+reject_records=0
+
+
+process_stats_schema=StructType([StructField('process_name', types.StringType(), False),
+                          StructField('pyspark_job_name', types.StringType(), True),
+                          StructField('type_of_load', types.StringType(), True),
+                          StructField('redords_read', types.IntegerType(), False),
+                          StructField('records_loaded', types.IntegerType(), True),
+                          StructField('records_rejected', types.IntegerType(), True),
+                          StructField('start_time', types.TimestampType(), True),
+                          StructField('end_time', types.TimestampType(), True),
+                          StructField('source_file_name', types.StringType(), True),
+                          StructField('target_table_name', types.StringType(), True)])
 
 class schemas:
     # Schema definations for all the files
+    
 
     device_unlock_schema = StructType([StructField('ACCOUNT_NUM', types.IntegerType(), False),
                                        StructField('IMEI', types.StringType(), False),
@@ -88,6 +108,7 @@ class schemas:
                                             StructField('IS_LOCK_STATUS_VERIFIABLE', types.StringType(), True),
                                             StructField('IS_DEVICE_OUT_OF_MIN_CONTRACT', types.StringType(), True),
                                             StructField('IS_CHARGE_REJECTED', types.StringType(), True)])
+                                            
 
 
 # generic typecasting method
@@ -176,11 +197,12 @@ def process_device_unlocking_el(ol_filename, device_unlock_config, fileDate):
     
     #modify to match bigquery schema
     df_status = spark.read.csv(GCP_BUCKET + "dim_device_unlock_status.csv",schema=schemas.device_unlock_status_schema)
-
+    start_time=datetime.datetime.now()
     # Processing device_unlock_cust
     max_cust_surr_key = device_unlock_config["max_cust_id"]
     rt_val_cust = process_dimension_files(df, max_cust_surr_key, schemas.device_unlock_cust_schema.fieldNames())
     device_unlock_config["max_cust_id"] = rt_val_cust[1]
+    
 
     print("TDIM_DVEICE_UNLOCK_CUST")
     print(rt_val_cust[0].show())
@@ -189,8 +211,11 @@ def process_device_unlocking_el(ol_filename, device_unlock_config, fileDate):
         .option("temporaryGcsBucket", "device_unlock_inbound") \
         .mode('append') \
         .save()
-
+    end_time=datetime.datetime.now()
+    pro_sts_cust=spark.createDataFrame([(process_name,pyspark_job_name,type_of_load,df.count(),rt_val_cust[0].count(),reject_records,start_time,end_time,ol_filename,'T_DIM_DEVICE_UNLOCK_CUST')], process_stats_schema)
+    
     # Processing device_unlock_rsn
+    start_time=datetime.datetime.now()
     max_rsn_surr_key = device_unlock_config["max_status_rsn_id"]
     rt_val_rsn = process_dimension_files(df, max_rsn_surr_key, schemas.device_unlock_rsn_schema.fieldNames())
     device_unlock_config["max_status_rsn_id"] = rt_val_rsn[1]
@@ -202,8 +227,13 @@ def process_device_unlocking_el(ol_filename, device_unlock_config, fileDate):
         .option("temporaryGcsBucket", "device_unlock_inbound") \
         .mode('append') \
         .save()
+        
+    end_time=datetime.datetime.now()
+    pro_sts_rsn=spark.createDataFrame([(process_name,pyspark_job_name,type_of_load,df.count(),rt_val_rsn[0].count(),reject_records,start_time,end_time,ol_filename,'T_DIM_DEV_UNLCK_STATUS_RSN')], process_stats_schema)
+    process_stat=pro_sts_cust.union(pro_sts_rsn)
 
     # Processing fact_device_unlock
+    start_time=datetime.datetime.now()
     fact_out = process_fact_device_unlock(df, rt_val_cust[0], rt_val_rsn[0],df_status,
                                           schemas.device_unlock_fact_schema.fieldNames())
     print("T_FACT_DEVICE_UNLOCK")
@@ -213,6 +243,16 @@ def process_device_unlocking_el(ol_filename, device_unlock_config, fileDate):
         .option("temporaryGcsBucket", "device_unlock_inbound") \
         .mode('append') \
         .save()
+    end_time=datetime.datetime.now()
+    pro_sts_fact=spark.createDataFrame([(process_name,pyspark_job_name,type_of_load,df.count(),fact_out.count(),reject_records,start_time,end_time,ol_filename,'T_FACT_DEVICE_UNLOCK')], process_stats_schema)
+
+    process_stat=process_stat.union(pro_sts_fact)
+    process_stat.write.format('bigquery') \
+        .option('table', 'COLLECT_STATISTICS_PROD.PROCESS_RUN_STATISTICS') \
+        .option("temporaryGcsBucket", "device_unlock_inbound") \
+        .mode('append') \
+        .save()
+    
 
     return device_unlock_config
 
@@ -223,7 +263,7 @@ def main():
     try:
         # Reading config json file
       #  with open(GCP_BUCKET + 'device_unlock_config.json') as f:
-      device_unlock_config = {"last_processed": "20200427", "max_status_rsn_id": 1, "max_cust_id": 1}
+      device_unlock_config = {"last_processed": "20200429", "max_status_rsn_id": 1, "max_cust_id": 1}
       print("hello")
     except:
         e = sys.exc_info()[0]
@@ -231,7 +271,7 @@ def main():
         raise
 
     # last processed date
-    last_processed_date = datetime.datetime.strptime('20200427', '%Y%m%d').date()
+    last_processed_date = datetime.datetime.strptime('20200429', '%Y%m%d').date()
    #  last_processed_date = '20200414'
     log.info("last processed date : " + str(last_processed_date));
 
@@ -244,7 +284,7 @@ def main():
         # iterating through the files
         for i in range(0, iteration_no.days):
             fileDate = (last_processed_date + dt.timedelta(days=(1 + i))).strftime('%Y%m%d')
-            ol_filename = GCP_BUCKET + "device_unlock_" + fileDate + ".dat/"
+            ol_filename = GCP_BUCKET_OUT + "device_unlock_" + fileDate + ".dat/"
 
             # process ol file
             device_unlock_config_updated = process_device_unlocking_el(ol_filename, device_unlock_config, fileDate)

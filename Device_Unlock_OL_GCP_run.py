@@ -12,10 +12,12 @@ import sys, time
 import datetime as datetm
 import json
 from datetime import date
+from datetime import datetime
 
 
 sc = SparkContext.getOrCreate()
 GCP_BUCKET = "gs://device_unlock_inbound/"
+GCP_BUCKET_OUT = "gs://device_unlock_outbound/"
 
 
 log4jLogger = sc._jvm.org.apache.log4j
@@ -23,6 +25,22 @@ log = log4jLogger.LogManager.getLogger("RollingFile")
 log.setLevel(log4jLogger.Level.INFO)
 
 spark = SparkSession.builder.appName("Device Unlock OL").getOrCreate()
+
+process_name = "Device unlock OL"
+pyspark_job_name ="Device_Unlock_OL_GCP.py"
+type_of_load = "OL"
+reject_records=0
+
+process_stats_schema=StructType([StructField('process_name', StringType(), False),
+                          StructField('pyspark_job_name', StringType(), True),
+                          StructField('type_of_load', StringType(), True),
+                          StructField('redords_read', IntegerType(), False),
+                          StructField('records_loaded', IntegerType(), True),
+                          StructField('records_rejected', IntegerType(), True),
+                          StructField('start_time', TimestampType(), True),
+                          StructField('end_time', TimestampType(), True),
+                          StructField('source_file_name', StringType(), True),
+                          StructField('target_table_name', StringType(), True)])
 
 # Define the input file schema
 inputSchema = StructType([StructField('ACCOUNT_NUM', DecimalType(precision=9), False),
@@ -53,6 +71,7 @@ def validate_str_len(input_file, col_name, col_length):
 
 def process_device_unlocking_ol(input_filename, output_filename, curr_processed_date):
     # Read the input file
+    start_time= datetime.now()
     input_intermediate = GCP_BUCKET + input_filename
    # input_file = sc.textFile("D:/" + input_filename)
     #input_file = spark.read.csv(input_intermediate, inferSchema=True, header=True)
@@ -100,8 +119,13 @@ def process_device_unlocking_ol(input_filename, output_filename, curr_processed_
     output_file = input_file.select(['ACCOUNT_NUM', 'IMEI'] + [c for c in input_file.columns if c not in ['ACCOUNT_NUM','IMEI']]).withColumn('date_recorded', lit(curr_processed_date))
     print(output_file.show())
    #output_file.toPandas().to_csv(GCP_BUCKET + output_filename, index=False, header=False, sep=",", date_format="%Y%m%d %H:%M:%S")
-    output_file.write.format('csv').option('emptyValue', 'null').save(GCP_BUCKET + output_filename)
+    output_file.write.format('csv').option('emptyValue', 'null').save(GCP_BUCKET_OUT + output_filename)
     output_file.write.format('bigquery').option('table', 'OL_AMDOCS_PROD.T_DEVICE_UNLOCK_G').option("temporaryGcsBucket", "device_unlock_inbound").mode('append').save()
+    end_time=datetime.now() 
+    #creates process stats
+    process_stats_df=spark.createDataFrame([(process_name,pyspark_job_name,type_of_load,rec_count,output_file.count(),reject_records,start_time,end_time,input_filename,'T_DEVICE_UNLOCK')], process_stats_schema)
+    process_stats_df.write.format('bigquery').option('table', 'COLLECT_STATISTICS_PROD.PROCESS_RUN_STATISTICS').option("temporaryGcsBucket", "device_unlock_inbound").mode('append').save()
+   
 
 
 def main():
