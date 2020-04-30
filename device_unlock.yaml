@@ -56,7 +56,7 @@ steps:
 
 - name: gcr.io/cloud-builders/gcloud
 
-  args: ['composer', 'environments', 'run', 'gcp-poc-composer', '--location', 'europe-west1', 'trigger_dag', '--', 'Device_unlock_run_g_7']
+  args: ['composer', 'environments', 'run', 'gcp-poc-composer', '--location', 'europe-west1', 'trigger_dag', '--', 'Device_unlock_run_g']
 
   id: 'trigger-pipeline-execution'
 
