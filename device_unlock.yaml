@@ -44,11 +44,11 @@ steps:
 
 - name: gcr.io/cloud-builders/gsutil
 
-  args: ['cp', 'device_unlock_dag.py', 'gs://europe-west1-gcp-poc-compos-1f9cfc67-bucket/dags/new_device_unlock_dag.py']
+  args: ['cp', 'device_unlock_dag.py', 'gs://europe-west1-gcp-poc-compos-48218dc4-bucket/dags/new_device_unlock_dag.py']
 
   dir: 'poc/'
 
-  id: 'cicd-copy-day-gsbucket'
+  id: 'cicd-copy-dag-gsbucket'
 
 #- name: gcr.io/cloud-builders/gcloud
 
