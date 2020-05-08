@@ -63,7 +63,7 @@ inputSchema = StructType([StructField('ACCOUNT_NUM', DecimalType(precision=9), F
 # Validate string column length
 def validate_str_len(input_file, col_name, col_length):
     invalid_row_cnt = input_file.where(length(col_name) > col_length).count()
-    print(invalid_row_cnt)
+    #print(invalid_row_cnt)
     if invalid_row_cnt > 0:
         log.error('Column length for column ' + col_name + ' in file ' + input_filename + ' is not as per IC')
         raise Exception('Column length for column ' + col_name + ' in file ' + input_filename + ' is not as per IC')
@@ -73,8 +73,6 @@ def process_device_unlocking_ol(input_filename, output_filename, curr_processed_
     # Read the input file
     start_time= datetime.now()
     input_intermediate = GCP_BUCKET + input_filename
-   # input_file = sc.textFile("D:/" + input_filename)
-    #input_file = spark.read.csv(input_intermediate, inferSchema=True, header=True)
     input_file = sc.textFile(input_intermediate)
 
     header = input_file.first()
@@ -91,14 +89,17 @@ def process_device_unlocking_ol(input_filename, output_filename, curr_processed_
     if rec_count != int(trailer_count):
         log.error('Incomplete file!!!!! Record count does not match trailer details.')
         raise Exception('Incomplete file!!!!! Record count does not match trailer details.')
-
-        # Validate not null columns
+    print(" ")
+    print("Trailer and detail record counts are matching.Proceeding with the data validation")
+    
     null_count = input_file.where(
         col('ACCOUNT_NUM').isNull() | col('IMEI').isNull() | col('DATE_TIMESTAMP').isNull() | col(
             'REQUEST_STATUS').isNull() | col('STATUS_REASON').isNull()).count()
     if null_count > 0:
         log.error('File ' + input_filename + ' has null value for not null column')
         raise Exception('File ' + input_filename + ' has null value for not null column')
+    print(" ")
+    print("Data validation has completed, data has no NULLS and is as per the specification")
 
     # Validate string column length
     validate_str_len(input_file, 'CONTACT_EMAIL', 128)
@@ -117,40 +118,50 @@ def process_device_unlocking_ol(input_filename, output_filename, curr_processed_
 
     # Write to output file
     output_file = input_file.select(['ACCOUNT_NUM', 'IMEI'] + [c for c in input_file.columns if c not in ['ACCOUNT_NUM','IMEI']]).withColumn('date_recorded', lit(curr_processed_date))
-    print(output_file.show())
+    #print(output_file.show())
    #output_file.toPandas().to_csv(GCP_BUCKET + output_filename, index=False, header=False, sep=",", date_format="%Y%m%d %H:%M:%S")
+    
     output_file.write.format('csv').option('emptyValue', 'null').save(GCP_BUCKET_OUT + output_filename)
+    print(" ")
+    print("Data written to load ready file to be used in EL process")
     output_file.write.format('bigquery').option('table', 'OL_AMDOCS_PROD.T_DEVICE_UNLOCK_G').option("temporaryGcsBucket", "device_unlock_inbound").mode('append').save()
+    print(" ")
+    print("Data loaded into OL table : OL_AMDOCS_PROD.T_DEVICE_UNLOCK_G")
     end_time=datetime.now() 
     #creates process stats
     process_stats_df=spark.createDataFrame([(process_name,pyspark_job_name,type_of_load,rec_count,output_file.count(),reject_records,start_time,end_time,input_filename,'T_DEVICE_UNLOCK')], process_stats_schema)
     process_stats_df.write.format('bigquery').option('table', 'COLLECT_STATISTICS_PROD.PROCESS_RUN_STATISTICS').option("temporaryGcsBucket", "device_unlock_inbound").mode('append').save()
+    print(" ")
+    print("Run statistics have been collected into the table : COLLECT_STATISTICS_PROD.PROCESS_RUN_STATISTICS ")
    
 
 
 def main():
-    log.info("Start of _main_ method in device_unlocking class");
+    log.info("Start of main method in device_unlocking class");
+    print(" ")
 
     # Obtain the file date to be processed
     CONFIG_FILE = GCP_BUCKET + "g_last_processed_date_ol.txt/"
     CONFIG_FILE1 = GCP_BUCKET + "g_last_processed_date_ol.txt"
     curr_processed_date_file = spark.read.csv(CONFIG_FILE).select(
         from_unixtime(unix_timestamp('_c0', 'yyyyMMdd'), 'yyyyMMdd').alias('_c0'))
-    last_processed_date = datetm.datetime.strptime((curr_processed_date_file.collect())[0][0], '%Y%m%d').date()
-    print("Last processed file read from config file is " + str(last_processed_date))
+    #last_processed_date = datetm.datetime.strptime((curr_processed_date_file.collect())[0][0], '%Y%m%d').date()
+    #print("Last processed file is " + str(last_processed_date))
 
-    log.info("last processed date : " + str(last_processed_date));
+    #log.info("last processed date : " + str(last_processed_date));
+    print(" ")
 
     # last processed date is grt than today's date then skip the process
     if (last_processed_date < date.today()):
             iteration_no = date.today() - last_processed_date
-            log.info("Backlog No : " + str(int(iteration_no.days) - 1));
-            curr_processed_date = (last_processed_date + datetm.timedelta(days=(1))).strftime('%Y%m%d')
+            #log.info("Backlog No : " + str(int(iteration_no.days) - 1));
+            #curr_processed_date = (last_processed_date + datetm.timedelta(days=(1))).strftime('%Y%m%d')
+            curr_processed_date = date.today().strftime("%Y%m%d")
             input_filename = "DeviceUnlockReport_" + curr_processed_date + ".txt"
+            print("Current file to be processed is " + input_filename)
             output_filename = "device_unlock_" + curr_processed_date + ".dat"
             process_device_unlocking_ol(input_filename, output_filename, curr_processed_date)
-            config_file = curr_processed_date_file.withColumn('_c0', lit(curr_processed_date)) 
-            print(config_file.show())
+            #config_file = curr_processed_date_file.withColumn('_c0', lit(curr_processed_date)) 
             #config_file.write.csv(CONFIG_FILE,header=True,mode = 'overwrite')
             
 
