@@ -145,7 +145,7 @@ def main():
     CONFIG_FILE1 = GCP_BUCKET + "g_last_processed_date_ol.txt"
     curr_processed_date_file = spark.read.csv(CONFIG_FILE).select(
         from_unixtime(unix_timestamp('_c0', 'yyyyMMdd'), 'yyyyMMdd').alias('_c0'))
-    #last_processed_date = datetm.datetime.strptime((curr_processed_date_file.collect())[0][0], '%Y%m%d').date()
+    last_processed_date = datetm.datetime.strptime((curr_processed_date_file.collect())[0][0], '%Y%m%d').date()
     #print("Last processed file is " + str(last_processed_date))
 
     #log.info("last processed date : " + str(last_processed_date));
