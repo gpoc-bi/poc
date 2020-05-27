@@ -44,7 +44,7 @@ steps:
 
 - name: gcr.io/cloud-builders/gsutil
 
-  args: ['cp', 'device_unlock_dag.py', 'gs://europe-west1-gcp-poc-compos-9cfc7cbe-bucket/dags/new_device_unlock_dag.py']
+  args: ['cp', 'device_unlock_dag.py', 'gs://europe-west1-gcp-poc-compos-974c9388-bucket/dags/new_device_unlock_dag.py']
 
   dir: 'poc/'
 
